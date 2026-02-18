@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING, overload
+from logging import getLogger
 
 from conda.base.context import context
 from conda.common.io import dashlist
@@ -15,6 +16,8 @@ from ruamel.yaml import YAMLError
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
 from ..validate_urls import validate_urls
+
+log = getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -240,11 +243,16 @@ class RattlerLockV6Loader(EnvironmentSpecBase):
         self.path = Path(path).resolve()
 
     def can_handle(self) -> bool:
-        return (
-            self.path.name in DEFAULT_FILENAMES
-            and self.path.exists()
-            and self._data["version"] == 6
-        )
+        if not self.path.exists():
+            return False
+        
+        try:
+            _rattler_lock_v6_to_env(**self._data)
+        except (TypeError, ValueError) as e:
+            log.debug(f"Unable to handle environment in {self.path}: {e}")
+            return False
+        
+        return True
 
     @property
     def _data(self) -> dict[str, Any]:

@@ -4,6 +4,7 @@ import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
+from logging import getLogger
 
 from conda.base.context import context
 from conda.common.io import dashlist
@@ -19,6 +20,9 @@ from .. import __version__
 from ..load_yaml import load_yaml
 from ..records_from_conda_urls import records_from_conda_urls
 from ..validate_urls import validate_urls
+
+log = getLogger(__name__)
+
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -247,11 +251,16 @@ class CondaLockV1Loader(EnvironmentSpecBase):
         self.path = Path(path).resolve()
 
     def can_handle(self) -> bool:
-        return (
-            self.path.name in DEFAULT_FILENAMES
-            and self.path.exists()
-            and self._data["version"] == 1
-        )
+        if not self.path.exists():
+            return False
+        
+        try:
+            _conda_lock_v1_to_env(platform=context.subdir, **self._data)
+        except (TypeError, ValueError) as e:
+            log.debug(f"Unable to handle environment in {self.path}: {e}")
+            return False
+        
+        return True
 
     @property
     def _data(self) -> dict[str, Any]:
